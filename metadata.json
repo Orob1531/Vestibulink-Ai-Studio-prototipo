@@ -1,0 +1,6 @@
+{
+  "name": "Vestibulink",
+  "description": "Nunca perca um prazo de vestibular. Agregador inteligente de vestibulares e concursos com alertas automáticos por WhatsApp e e-mail antes do prazo fechar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
