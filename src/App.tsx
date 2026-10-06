@@ -8,81 +8,37 @@ import { MyAlertsModal } from "./components/MyAlertsModal";
 import { NewProcessModal } from "./components/NewProcessModal";
 import { ProjectProposalModal } from "./components/ProjectProposalModal";
 import { SchoolPartnershipModal } from "./components/SchoolPartnershipModal";
-import { INITIAL_PROCESSOS } from "./data/initialVestibulares";
 import {
   AlertaUsuario,
-  AreaCurso,
-  EstadoBrasil,
   ProcessoSeletivo,
-  TipoProcesso,
   UserPreferences,
 } from "./types";
-import { calcularStatus } from "./utils/dateUtils";
+import { opportunityRepository } from "./repositories/opportunityRepository";
+import { alertRepository } from "./repositories/alertRepository";
+import { preferencesRepository } from "./repositories/preferencesRepository";
+import { opportunityService } from "./services/opportunityService";
 import {
-  AlertTriangle,
-  Sparkles,
   TrendingUp,
-  School,
-  FileText,
   Clock,
   CheckCircle2,
   Filter,
 } from "lucide-react";
 
-const STORAGE_PROCESSOS_KEY = "vestibulink_processos_v1";
-const STORAGE_ALERTAS_KEY = "vestibulink_alertas_v1";
-const STORAGE_PREFS_KEY = "vestibulink_preferences_v1";
-
 export default function App() {
-  // Lista de Processos Seletivos (com persistência de novos cadastros manuais)
-  const [processos, setProcessos] = useState<ProcessoSeletivo[]>(() => {
-    try {
-      const salvo = localStorage.getItem(STORAGE_PROCESSOS_KEY);
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn("Erro ao ler processos do storage:", e);
-    }
-    return INITIAL_PROCESSOS;
-  });
+  // Lista de Processos Seletivos (inicializa via camada de repositório e sincroniza com o backend)
+  const [processos, setProcessos] = useState<ProcessoSeletivo[]>(() =>
+    opportunityRepository.getInitialCached()
+  );
 
-  // Alertas do Usuário
-  const [alertas, setAlertas] = useState<AlertaUsuario[]>(() => {
-    try {
-      const salvo = localStorage.getItem(STORAGE_ALERTAS_KEY);
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn("Erro ao ler alertas do storage:", e);
-    }
-    return [];
-  });
+  // Alertas do Usuário (inicializa via camada de repositório e sincroniza com a fila do backend)
+  const [alertas, setAlertas] = useState<AlertaUsuario[]>(() =>
+    alertRepository.getInitialCached()
+  );
 
   // Preferências do Usuário (Onboarding)
-  const [preferences, setPreferences] = useState<UserPreferences>(() => {
-    try {
-      const salvo = localStorage.getItem(STORAGE_PREFS_KEY);
-      if (salvo) {
-        return JSON.parse(salvo);
-      }
-    } catch (e) {
-      console.warn("Erro ao ler preferencias:", e);
-    }
-    return {
-      estadoSelecionado: "TODOS",
-      areaSelecionada: "todas",
-      tipoSelecionado: "vestibular", // Foco 100% vestibular no início
-      apenasComIsencao: false,
-      apenasGratis: false,
-      faseLançamento: 1, // Fase 1: Centro-Oeste
-    };
-  });
+  const [preferences, setPreferences] = useState<UserPreferences>(() =>
+    preferencesRepository.getInitialCached()
+  );
 
   // Busca livre por texto
   const [searchTerm, setSearchTerm] = useState("");
@@ -96,17 +52,21 @@ export default function App() {
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
 
-  // Sincronizar storage
+  // Sincronização inicial assíncrona com a camada de dados do backend
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_ALERTAS_KEY, JSON.stringify(alertas));
-    } catch (e) {}
-  }, [alertas]);
+    opportunityRepository.fetchAll().then((remoteProcessos) => {
+      if (remoteProcessos.length > 0) {
+        setProcessos(remoteProcessos);
+      }
+    });
+    alertRepository.fetchAll().then((remoteAlertas) => {
+      setAlertas(remoteAlertas);
+    });
+  }, []);
 
+  // Persistir preferências na camada de dados
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_PREFS_KEY, JSON.stringify(preferences));
-    } catch (e) {}
+    preferencesRepository.save(preferences);
   }, [preferences]);
 
   const handleUpdatePreferences = (updated: Partial<UserPreferences>) => {
@@ -143,104 +103,44 @@ export default function App() {
       const filtered = prev.filter((a) => a.processoId !== novoAlerta.processoId);
       return [novoAlerta, ...filtered];
     });
+    alertRepository.saveAlert(novoAlerta).then((saved) => {
+      setAlertas((prev) => [
+        saved,
+        ...prev.filter((a) => a.processoId !== saved.processoId),
+      ]);
+    });
   };
 
   const handleRemoveAlerta = (alertaId: string) => {
     setAlertas((prev) => prev.filter((a) => a.id !== alertaId));
+    alertRepository.removeAlert(alertaId);
   };
 
   const handleAddProcesso = (novoProcesso: ProcessoSeletivo) => {
-    setProcessos((prev) => {
-      const atualizados = [novoProcesso, ...prev];
-      try {
-        localStorage.setItem(STORAGE_PROCESSOS_KEY, JSON.stringify(atualizados));
-      } catch (e) {}
-      return atualizados;
+    setProcessos((prev) => [
+      novoProcesso,
+      ...prev.filter((p) => p.id !== novoProcesso.id),
+    ]);
+    opportunityRepository.create(novoProcesso).then((saved) => {
+      setProcessos((prev) => [
+        saved,
+        ...prev.filter((p) => p.id !== saved.id && p.id !== novoProcesso.id),
+      ]);
     });
   };
 
-  // Filtragem e Ordenação: PRAZO MAIS PRÓXIMO PRIMEIRO (conforme PDF página 4)
+  // Filtragem e Ordenação: PRAZO MAIS PRÓXIMO PRIMEIRO via camada de serviço (respeitando fuso horário)
   const processosFiltrados = useMemo(() => {
-    return processos
-      .filter((proc) => {
-        // Filtro de Fase de Lançamento
-        if (preferences.faseLançamento === 1) {
-          // Fase 1: Centro-Oeste
-          if (proc.regiao !== "Centro-Oeste") return false;
-          if (proc.tipo !== "vestibular") return false;
-        } else if (preferences.faseLançamento === 2) {
-          // Fase 2: Resto do Brasil (Apenas vestibulares)
-          if (proc.tipo !== "vestibular") return false;
-        }
-        // Fase 3: Concursos e vestibulares
-
-        // Filtro de Estado
-        if (
-          preferences.estadoSelecionado !== "TODOS" &&
-          proc.estado !== preferences.estadoSelecionado
-        ) {
-          return false;
-        }
-
-        // Filtro de Tipo
-        if (preferences.tipoSelecionado !== "todos" && proc.tipo !== preferences.tipoSelecionado) {
-          return false;
-        }
-
-        // Filtro de Área
-        if (
-          preferences.areaSelecionada !== "todas" &&
-          !proc.areasPrincipais.includes("todas") &&
-          !proc.areasPrincipais.includes(preferences.areaSelecionada)
-        ) {
-          return false;
-        }
-
-        // Filtro de Isenção
-        if (preferences.apenasComIsencao && !proc.temIsencao) {
-          return false;
-        }
-
-        // Filtro de Gratuito
-        if (preferences.apenasGratis && proc.taxaInscricao > 0) {
-          return false;
-        }
-
-        // Filtro de Reta Final
-        const { status } = calcularStatus(proc);
-        if (apenasRetaFinal && status !== "reta-final" && status !== "fecha-hoje") {
-          return false;
-        }
-
-        // Busca livre
-        if (searchTerm.trim()) {
-          const termo = searchTerm.toLowerCase();
-          const matchSigla = proc.sigla.toLowerCase().includes(termo);
-          const matchNome = proc.nomeInstituicao.toLowerCase().includes(termo);
-          const matchTitulo = proc.tituloProcesso.toLowerCase().includes(termo);
-          const matchCidade = proc.cidade.toLowerCase().includes(termo);
-          const matchEstado = proc.estado.toLowerCase().includes(termo);
-          if (!matchSigla && !matchNome && !matchTitulo && !matchCidade && !matchEstado) {
-            return false;
-          }
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        // Ordenação estrita por prazo final mais próximo primeiro
-        const timeA = new Date(`${a.periodoInscricaoFim}T23:59:59`).getTime();
-        const timeB = new Date(`${b.periodoInscricaoFim}T23:59:59`).getTime();
-        return timeA - timeB;
-      });
+    return opportunityService.filterAndSortByDeadline(processos, {
+      preferences,
+      searchTerm,
+      apenasRetaFinal,
+    });
   }, [processos, preferences, searchTerm, apenasRetaFinal]);
 
   // Contagem de processos em reta final
   const totalRetaFinal = useMemo(() => {
-    return processos.filter((p) => {
-      const { status } = calcularStatus(p);
-      return status === "reta-final" || status === "fecha-hoje";
-    }).length;
+    return opportunityService.countRetaFinal(processos);
   }, [processos]);
 
   return (

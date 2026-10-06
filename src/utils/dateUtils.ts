@@ -1,4 +1,53 @@
-import { ProcessoSeletivo, StatusInscricao } from "../types";
+import { BrazilTimezone, EstadoBrasil, ProcessoSeletivo, StatusInscricao } from "../types";
+
+/**
+ * Retorna o fuso horário IANA padrão para cada estado brasileiro quando não especificado no processo.
+ */
+export function obterFusoHorarioPorEstado(estado: EstadoBrasil): BrazilTimezone {
+  switch (estado) {
+    case "MT":
+      return "America/Cuiaba"; // UTC-4
+    case "MS":
+      return "America/Campo_Grande"; // UTC-4
+    default:
+      return "America/Sao_Paulo"; // UTC-3 (GO, DF, SP, RJ, MG, PR, SC, RS, BA, PE, CE, etc.)
+  }
+}
+
+/**
+ * Retorna o offset ISO para o fuso horário brasileiro correspondente.
+ */
+export function obterOffsetPorFuso(timezone: BrazilTimezone): string {
+  switch (timezone) {
+    case "America/Cuiaba":
+    case "America/Campo_Grande":
+    case "America/Manaus":
+      return "-04:00";
+    case "America/Rio_Branco":
+      return "-05:00";
+    case "America/Sao_Paulo":
+    case "America/Belem":
+    default:
+      return "-03:00";
+  }
+}
+
+/**
+ * Converte data YYYY-MM-DD + horaFechamento (ex: "18:00" ou "23:59") + fuso horário
+ * em um objeto Date preciso, evitando assumir o fuso local do servidor.
+ */
+export function obterTimestampFechamento(processo: ProcessoSeletivo): Date {
+  const timezone = processo.fusoHorario || obterFusoHorarioPorEstado(processo.estado);
+  const offset = obterOffsetPorFuso(timezone);
+  const hora = processo.horaFechamento && /^\d{2}:\d{2}$/.test(processo.horaFechamento)
+    ? `${processo.horaFechamento}:59`
+    : "23:59:59";
+  const parsed = new Date(`${processo.periodoInscricaoFim}T${hora}${offset}`);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date(`${processo.periodoInscricaoFim}T23:59:59`);
+  }
+  return parsed;
+}
 
 export function calcularStatus(processo: ProcessoSeletivo): {
   status: StatusInscricao;
@@ -7,19 +56,19 @@ export function calcularStatus(processo: ProcessoSeletivo): {
   textoUrgencia: string;
   badgeClasse: string;
 } {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-
-  const fimDate = new Date(`${processo.periodoInscricaoFim}T23:59:59`);
-  const diffMs = fimDate.getTime() - new Date().getTime();
+  const agora = new Date();
+  const fimDate = obterTimestampFechamento(processo);
+  const diffMs = fimDate.getTime() - agora.getTime();
   const diffDias = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   const diffHoras = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
 
-  // Checar se a isenção está aberta e acaba em até 2 dias
+  // Checar se a isenção está aberta e acaba em até 2 dias considerando o fuso do processo
   let isencaoAtiva = false;
   if (processo.temIsencao && processo.limiteIsencao) {
-    const isencaoFim = new Date(`${processo.limiteIsencao}T23:59:59`);
-    const diffIsencao = isencaoFim.getTime() - new Date().getTime();
+    const timezone = processo.fusoHorario || obterFusoHorarioPorEstado(processo.estado);
+    const offset = obterOffsetPorFuso(timezone);
+    const isencaoFim = new Date(`${processo.limiteIsencao}T23:59:59${offset}`);
+    const diffIsencao = isencaoFim.getTime() - agora.getTime();
     if (diffIsencao >= 0 && diffIsencao <= 2 * 24 * 60 * 60 * 1000) {
       isencaoAtiva = true;
     }

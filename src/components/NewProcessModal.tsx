@@ -1,6 +1,8 @@
 import React, { useState, FormEvent } from "react";
 import { X, Plus, Sparkles, Building, Calendar, DollarSign, ExternalLink, Check, AlertCircle } from "lucide-react";
 import { AreaCurso, EstadoBrasil, ProcessoSeletivo } from "../types";
+import { opportunityService } from "../services/opportunityService";
+import { obterFusoHorarioPorEstado } from "../utils/dateUtils";
 
 interface NewProcessModalProps {
   isOpen: boolean;
@@ -54,33 +56,26 @@ export function NewProcessModal({
     setMensagemIA(null);
 
     try {
-      // Chamar backend para extrair dados estruturados
-      const res = await fetch("/api/extrair-edital", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ textoEdital: textoEditalIA }),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        if (json.dados) {
-          const d = json.dados;
-          if (d.sigla) setSigla(d.sigla);
-          if (d.nomeInstituicao) setNomeInstituicao(d.nomeInstituicao);
-          if (d.tituloProcesso) setTituloProcesso(d.tituloProcesso);
-          if (d.estado) setEstado(d.estado);
-          if (d.cidade) setCidade(d.cidade);
-          if (d.taxaInscricao !== undefined) setTaxaInscricao(d.taxaInscricao);
-          if (d.periodoInscricaoFim) setPeriodoInscricaoFim(d.periodoInscricaoFim);
-          if (d.dataProva) setDataProva(d.dataProva);
-          if (d.vagas) setVagas(d.vagas);
-          if (d.destaques && Array.isArray(d.destaques)) {
-            setDestaquesTexto(d.destaques.join("\n"));
-          }
-          setMensagemIA("Campos preenchidos automaticamente com base no texto do edital!");
+      const json = await opportunityService.extractEditalDraftWithAI(textoEditalIA);
+      if (json.dados) {
+        const d = json.dados;
+        if (d.sigla) setSigla(d.sigla);
+        if (d.nomeInstituicao) setNomeInstituicao(d.nomeInstituicao);
+        if (d.tituloProcesso) setTituloProcesso(d.tituloProcesso);
+        if (d.estado) setEstado(d.estado);
+        if (d.cidade) setCidade(d.cidade);
+        if (d.taxaInscricao !== undefined) setTaxaInscricao(d.taxaInscricao);
+        if (d.periodoInscricaoInicio) setPeriodoInscricaoInicio(d.periodoInscricaoInicio);
+        if (d.periodoInscricaoFim) setPeriodoInscricaoFim(d.periodoInscricaoFim);
+        if (d.horaFechamento) setHoraFechamento(d.horaFechamento);
+        if (d.dataProva) setDataProva(d.dataProva);
+        if (d.vagas) setVagas(d.vagas);
+        if (d.temIsencao !== undefined) setTemIsencao(Boolean(d.temIsencao));
+        if (d.destaques && Array.isArray(d.destaques)) {
+          setDestaquesTexto(d.destaques.join("\n"));
         }
+        setMensagemIA("Rascunho extraído pela IA — revise os dados antes de publicar.");
       } else {
-        // Fallback inteligente
         setMensagemIA("Edital analisado. Revise os campos preenchidos.");
       }
     } catch (e) {
@@ -98,6 +93,10 @@ export function NewProcessModal({
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const hoje = new Date().toISOString().split("T")[0];
+    const cleanEditalUrl = linkEdital.trim();
+    const cleanInscricaoUrl = linkInscricao.trim();
+
     const novoProcesso: ProcessoSeletivo = {
       id: `manual-${Date.now()}`,
       sigla: sigla.toUpperCase(),
@@ -114,18 +113,22 @@ export function NewProcessModal({
       periodoInscricaoInicio,
       periodoInscricaoFim,
       horaFechamento,
+      fusoHorario: obterFusoHorarioPorEstado(estado),
       dataProva,
       areasPrincipais: ["todas"],
-      linkEdital: linkEdital || "#",
-      linkInscricao: linkInscricao || linkEdital || "#",
-      destaques: destaquesArray.length > 0 ? destaquesArray : ["Processo seletivo verificado"],
+      linkEdital: cleanEditalUrl,
+      linkInscricao: cleanInscricaoUrl || cleanEditalUrl,
+      destaques: destaquesArray.length > 0 ? destaquesArray : ["Cadastrado manualmente (pendente de revisão)"],
       cronograma: [
         { etapa: "Início das Inscrições", dataInicio: periodoInscricaoInicio },
         { etapa: "Último Dia de Inscrições", dataInicio: periodoInscricaoFim, destaque: true },
         { etapa: "Aplicação da Prova", dataInicio: dataProva, destaque: true },
       ],
-      verificadoManualmente: true,
-      dataAtualizacao: new Date().toISOString().split("T")[0],
+      verificadoManualmente: false,
+      statusVerificacao: "PENDING_VERIFICATION",
+      dataOrigin: "MANUAL_CURATED",
+      dataCriacao: hoje,
+      dataAtualizacao: hoje,
     };
 
     onAddProcesso(novoProcesso);

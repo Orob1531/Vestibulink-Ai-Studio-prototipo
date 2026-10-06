@@ -1,6 +1,8 @@
 import { ProcessoSeletivo } from "../types";
+import { Institution, OfficialSource } from "../domain/models";
+import { obterFusoHorarioPorEstado } from "../utils/dateUtils";
 
-// Helper para gerar datas relativas dinâmicas para a demonstração e validação do MVP
+// Helper para gerar datas relativas dinâmicas para a demonstração e validação do MVP (SEED / DEMO DATA)
 function addDays(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -13,7 +15,199 @@ function subDays(days: number): string {
   return d.toISOString().split("T")[0];
 }
 
-export const INITIAL_PROCESSOS: ProcessoSeletivo[] = [
+export const INITIAL_INSTITUTIONS: Institution[] = [
+  {
+    id: "inst-ufg",
+    nome: "Universidade Federal de Goiás",
+    sigla: "UFG",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "GO",
+    cidade: "Goiânia",
+    siteOficial: "https://ufg.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-ufmt",
+    nome: "Universidade Federal de Mato Grosso",
+    sigla: "UFMT",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "MT",
+    cidade: "Cuiabá",
+    siteOficial: "https://ufmt.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-unemat",
+    nome: "Universidade do Estado de Mato Grosso",
+    sigla: "UNEMAT",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "MT",
+    cidade: "Cáceres",
+    siteOficial: "https://unemat.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-unb",
+    nome: "Universidade de Brasília",
+    sigla: "UnB",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "DF",
+    cidade: "Brasília",
+    siteOficial: "https://unb.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-ufms",
+    nome: "Universidade Federal de Mato Grosso do Sul",
+    sigla: "UFMS",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "MS",
+    cidade: "Campo Grande",
+    siteOficial: "https://ufms.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-puc-go",
+    nome: "Pontifícia Universidade Católica de Goiás",
+    sigla: "PUC Goiás",
+    tipo: "UNIVERSIDADE_PRIVADA",
+    estado: "GO",
+    cidade: "Goiânia",
+    siteOficial: "https://pucgoias.edu.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-ifg",
+    nome: "Instituto Federal de Educação, Ciência e Tecnologia de Goiás",
+    sigla: "IFG",
+    tipo: "INSTITUTO_FEDERAL",
+    estado: "GO",
+    cidade: "Goiânia",
+    siteOficial: "https://ifg.edu.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-unirv",
+    nome: "Universidade de Rio Verde",
+    sigla: "UniRV",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "GO",
+    cidade: "Rio Verde",
+    siteOficial: "https://unirv.edu.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-usp",
+    nome: "Universidade de São Paulo",
+    sigla: "USP / Fuvest",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "SP",
+    cidade: "São Paulo",
+    siteOficial: "https://fuvest.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-unicamp",
+    nome: "Universidade Estadual de Campinas",
+    sigla: "UNICAMP",
+    tipo: "UNIVERSIDADE_PUBLICA",
+    estado: "SP",
+    cidade: "Campinas",
+    siteOficial: "https://comvest.unicamp.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-tj-go",
+    nome: "Tribunal de Justiça do Estado de Goiás",
+    sigla: "TJ-GO",
+    tipo: "ORGAO_PUBLICO",
+    estado: "GO",
+    cidade: "Goiânia",
+    siteOficial: "https://tjgo.jus.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+  {
+    id: "inst-bb",
+    nome: "Banco do Brasil S.A.",
+    sigla: "Banco do Brasil",
+    tipo: "ORGAO_PUBLICO",
+    estado: "DF",
+    cidade: "Brasília (Nacional)",
+    siteOficial: "https://bb.com.br",
+    status: "ACTIVE",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-12T00:00:00.000Z",
+  },
+];
+
+function criarFontesPadrao(
+  opportunityId: string,
+  institutionId: string,
+  linkEdital: string,
+  linkInscricao: string,
+  linkSiteOficial?: string
+): OfficialSource[] {
+  const fontes: OfficialSource[] = [];
+  if (linkSiteOficial) {
+    fontes.push({
+      id: `src-web-${opportunityId}`,
+      opportunityId,
+      institutionId,
+      url: linkSiteOficial,
+      tipoFonte: "OFFICIAL_WEBSITE",
+      titulo: "Portal Oficial da Instituição",
+      statusVerificacao: "PENDING_VERIFICATION",
+      observacoes: "Fonte base cadastrada no seed de demonstração (DEMO_SEED)",
+    });
+  }
+  fontes.push(
+    {
+      id: `src-notice-${opportunityId}`,
+      opportunityId,
+      institutionId,
+      url: linkEdital,
+      tipoFonte: "NOTICE",
+      titulo: "Página / Edital do Processo Seletivo",
+      statusVerificacao: "PENDING_VERIFICATION",
+      observacoes: "Link de referência para edital (DEMO_SEED - pendente validação de ciclo)",
+    },
+    {
+      id: `src-reg-${opportunityId}`,
+      opportunityId,
+      institutionId,
+      url: linkInscricao,
+      tipoFonte: "REGISTRATION",
+      titulo: "Página Oficial de Inscrição",
+      statusVerificacao: "PENDING_VERIFICATION",
+      observacoes: "Portal do candidato / inscrição (DEMO_SEED)",
+    }
+  );
+  return fontes;
+}
+
+const RAW_SEED_PROCESSOS: ProcessoSeletivo[] = [
   {
     id: "ufg-vestibular-proprio",
     sigla: "UFG",
@@ -435,7 +629,39 @@ export const INITIAL_PROCESSOS: ProcessoSeletivo[] = [
       { etapa: "Aplicação das Provas Objetivas", dataInicio: addDays(68), destaque: true }
     ],
     notaObservacao: "Grande porta de entrada para recém-formados do ensino médio.",
-    verificadoManualmente: true,
+    verificadoManualmente: false,
     dataAtualizacao: "2026-09-12"
   }
 ];
+
+/**
+ * Dados iniciais (SEED / DEMO DATA) enriquecidos com fuso horário regional,
+ * vínculo institucional, classificação de origem (DEMO_SEED) e fontes estruturadas.
+ */
+export const INITIAL_PROCESSOS: ProcessoSeletivo[] = RAW_SEED_PROCESSOS.map((proc) => {
+  const inst = INITIAL_INSTITUTIONS.find(
+    (i) => i.sigla.toLowerCase() === proc.sigla.toLowerCase()
+  );
+  const institutionId = inst?.id || `inst-${proc.id}`;
+  const fusoHorario = obterFusoHorarioPorEstado(proc.estado);
+  const linkSiteOficial = inst?.siteOficial;
+
+  return {
+    ...proc,
+    institutionId,
+    fusoHorario,
+    linkSiteOficial,
+    fontesOficiais: criarFontesPadrao(
+      proc.id,
+      institutionId,
+      proc.linkEdital,
+      proc.linkInscricao,
+      linkSiteOficial
+    ),
+    verificadoManualmente: false,
+    statusVerificacao: "PENDING_VERIFICATION",
+    dataOrigin: "DEMO_SEED",
+    dataCriacao: "2026-09-01",
+  };
+});
+

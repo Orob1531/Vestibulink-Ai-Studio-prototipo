@@ -1,5 +1,6 @@
 import React, { useState, FormEvent } from "react";
 import { X, School, CheckCircle2, Send, Sparkles, MapPin, Users } from "lucide-react";
+import { adminService } from "../services/adminService";
 
 interface SchoolPartnershipModalProps {
   isOpen: boolean;
@@ -22,6 +23,14 @@ export function SchoolPartnershipModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    adminService.submitSchoolPartnership({
+      nomeEscola,
+      cidadeEstado,
+      nomeResponsavel,
+      cargo,
+      whatsapp,
+      email,
+    });
     setEnviado(true);
   };
 
